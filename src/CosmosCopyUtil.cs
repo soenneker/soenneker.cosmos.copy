@@ -138,7 +138,7 @@ public sealed class CosmosCopyUtil : ICosmosCopyUtil
             _logger.LogDebug("Applied cutoff parameter: {cutoff}", cutoffUtc);
         }
 
-        FeedIterator<JsonElement>? feedIterator = sourceContainer.GetItemQueryIterator<JsonElement>(queryDef);
+        using FeedIterator<JsonElement>? feedIterator = sourceContainer.GetItemQueryIterator<JsonElement>(queryDef);
 
         string? partitionKeyPath = NormalizePartitionKeyPath(sourceProps.PartitionKeyPath);
         _logger.LogDebug("Normalized partition key path: {pk}", partitionKeyPath);
