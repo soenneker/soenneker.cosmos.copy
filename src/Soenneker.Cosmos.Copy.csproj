@@ -14,7 +14,7 @@
         <AssemblyName>Soenneker.Cosmos.Copy</AssemblyName>
         <PackageId>Soenneker.Cosmos.Copy</PackageId>
         <PackageTags>cosmos copy soenneker copying utility database container cosmoscopyutil util csharp dotnet c# .net</PackageTags>
-        <Copyright>Copyright © 2025 Jake Soenneker</Copyright>
+        <Copyright>Copyright © 2025-2026 Jake Soenneker</Copyright>
         <Authors>Jake Soenneker</Authors>
         <Company>https://soenneker.com</Company>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
