@@ -18,13 +18,13 @@ public interface ICosmosCopyUtil
     /// Optionally configures per-container cutoff times and exclusion via containerConfigs.
     /// </summary>
     ValueTask CopyDatabase(string sourceEndpoint, string sourceAccountKey, string sourceDatabaseName, string destinationEndpoint, string destinationAccountKey,
-        string destinationDatabaseName, DateTime? cutoffUtc = null, int numTasks = 50, IEnumerable<ContainerCopyConfig>? containerConfigs = null, CancellationToken cancellationToken = default);
+        string destinationDatabaseName, DateTimeOffset? cutoffUtc = null, int numTasks = 50, IEnumerable<ContainerCopyConfig>? containerConfigs = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Copies items from a source container to a destination container. Optionally filters items by createdAt >= cutoffUtc.
     /// Containers are created in the destination if they do not exist.
     /// </summary>
     ValueTask CopyContainer(string sourceEndpoint, string sourceAccountKey, string sourceDatabaseName, string sourceContainerName, string destinationEndpoint,
-        string destinationAccountKey, string destinationDatabaseName, string destinationContainerName, DateTime? cutoffUtc = null, int numTasks = 50,
+        string destinationAccountKey, string destinationDatabaseName, string destinationContainerName, DateTimeOffset? cutoffUtc = null, int numTasks = 50,
         CancellationToken cancellationToken = default);
 }

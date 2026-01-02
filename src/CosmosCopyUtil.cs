@@ -32,7 +32,7 @@ public sealed class CosmosCopyUtil : ICosmosCopyUtil
     }
 
     public async ValueTask CopyDatabase(string sourceEndpoint, string sourceAccountKey, string sourceDatabaseName, string destinationEndpoint,
-        string destinationAccountKey, string destinationDatabaseName, DateTime? cutoffUtc = null, int numTasks = 50, IEnumerable<ContainerCopyConfig>? containerConfigs = null, CancellationToken cancellationToken = default)
+        string destinationAccountKey, string destinationDatabaseName, DateTimeOffset? cutoffUtc = null, int numTasks = 50, IEnumerable<ContainerCopyConfig>? containerConfigs = null, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Starting CopyDatabase from {sourceDb} to {destDb}. Global cutoff: {cutoff}", sourceDatabaseName, destinationDatabaseName, cutoffUtc);
 
@@ -82,7 +82,7 @@ public sealed class CosmosCopyUtil : ICosmosCopyUtil
                 }
 
                 // Use container-specific cutoff if provided, otherwise fall back to global cutoff
-                DateTime? containerCutoff = config.CutoffUtc ?? cutoffUtc;
+                DateTimeOffset? containerCutoff = config.CutoffUtc ?? cutoffUtc;
                 await CopyContainer(sourceEndpoint, sourceAccountKey, sourceDatabaseName, props.Id, destinationEndpoint, destinationAccountKey,
                         destinationDatabaseName, props.Id, containerCutoff, numTasks, cancellationToken)
                     .NoSync();
@@ -100,7 +100,7 @@ public sealed class CosmosCopyUtil : ICosmosCopyUtil
     }
 
     public async ValueTask CopyContainer(string sourceEndpoint, string sourceAccountKey, string sourceDatabaseName, string sourceContainerName,
-        string destinationEndpoint, string destinationAccountKey, string destinationDatabaseName, string destinationContainerName, DateTime? cutoffUtc = null, int numTasks = 50,
+        string destinationEndpoint, string destinationAccountKey, string destinationDatabaseName, string destinationContainerName, DateTimeOffset? cutoffUtc = null, int numTasks = 50,
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Starting CopyContainer from {sourceDb}/{sourceContainer} to {destDb}/{destContainer}. Cutoff: {cutoff}", sourceDatabaseName,

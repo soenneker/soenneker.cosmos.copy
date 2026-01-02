@@ -15,7 +15,7 @@ public sealed class ContainerCopyConfig
     /// <summary>
     /// Optional cutoff time for filtering items by createdAt. If null, uses the global cutoff time or no filter.
     /// </summary>
-    public DateTime? CutoffUtc { get; set; }
+    public DateTimeOffset? CutoffUtc { get; set; }
 
     /// <summary>
     /// If true, this container will be excluded from the copy operation.
