@@ -23,8 +23,7 @@ public sealed class CosmosCopyUtil : ICosmosCopyUtil
     private readonly ICosmosContainerUtil _containerUtil;
     private readonly ICosmosContainerSetupUtil _containerSetupUtil;
 
-    public CosmosCopyUtil(ILogger<CosmosCopyUtil> logger, ICosmosContainerUtil containerUtil,
-        ICosmosContainerSetupUtil containerSetupUtil)
+    public CosmosCopyUtil(ILogger<CosmosCopyUtil> logger, ICosmosContainerUtil containerUtil, ICosmosContainerSetupUtil containerSetupUtil)
     {
         _logger = logger;
         _containerUtil = containerUtil;
@@ -32,30 +31,31 @@ public sealed class CosmosCopyUtil : ICosmosCopyUtil
     }
 
     public async ValueTask CopyDatabase(string sourceEndpoint, string sourceAccountKey, string sourceDatabaseName, string destinationEndpoint,
-        string destinationAccountKey, string destinationDatabaseName, DateTimeOffset? cutoffUtc = null, int numTasks = 50, IEnumerable<ContainerCopyConfig>? containerConfigs = null, CancellationToken cancellationToken = default)
+        string destinationAccountKey, string destinationDatabaseName, DateTimeOffset? cutoffUtc = null, int numTasks = 50,
+        IEnumerable<ContainerCopyConfig>? containerConfigs = null, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Starting CopyDatabase from {sourceDb} to {destDb}. Global cutoff: {cutoff}", sourceDatabaseName, destinationDatabaseName, cutoffUtc);
+        _logger.LogInformation("Starting CopyDatabase from {sourceDb} to {destDb}. Global cutoff: {cutoff}", sourceDatabaseName, destinationDatabaseName,
+            cutoffUtc);
 
         // Build a dictionary for quick lookup of container configurations (case-insensitive)
         Dictionary<string, ContainerCopyConfig>? configDict = null;
         if (containerConfigs != null)
         {
-            configDict = containerConfigs.ToDictionary(
-                c => c.ContainerName,
-                c => c,
-                StringComparer.OrdinalIgnoreCase);
+            configDict = containerConfigs.ToDictionary(c => c.ContainerName, c => c, StringComparer.OrdinalIgnoreCase);
 
-            var excluded = configDict.Values.Where(c => c.Exclude).ToList();
+            List<ContainerCopyConfig> excluded = configDict.Values.Where(c => c.Exclude)
+                                                           .ToList();
             if (excluded.Count > 0)
             {
-                _logger.LogInformation("Excluding {count} container(s) from copy: {containers}", 
-                    excluded.Count, string.Join(", ", excluded.Select(c => c.ContainerName)));
+                _logger.LogInformation("Excluding {count} container(s) from copy: {containers}", excluded.Count,
+                    string.Join(", ", excluded.Select(c => c.ContainerName)));
             }
 
-            var withCustomCutoff = configDict.Values.Where(c => !c.Exclude && c.CutoffUtc.HasValue).ToList();
+            List<ContainerCopyConfig> withCustomCutoff = configDict.Values.Where(c => !c.Exclude && c.CutoffUtc.HasValue)
+                                                                   .ToList();
             if (withCustomCutoff.Count > 0)
             {
-                _logger.LogInformation("Containers with custom cutoff times: {containers}", 
+                _logger.LogInformation("Containers with custom cutoff times: {containers}",
                     string.Join(", ", withCustomCutoff.Select(c => $"{c.ContainerName} (cutoff: {c.CutoffUtc})")));
             }
         }
@@ -100,8 +100,8 @@ public sealed class CosmosCopyUtil : ICosmosCopyUtil
     }
 
     public async ValueTask CopyContainer(string sourceEndpoint, string sourceAccountKey, string sourceDatabaseName, string sourceContainerName,
-        string destinationEndpoint, string destinationAccountKey, string destinationDatabaseName, string destinationContainerName, DateTimeOffset? cutoffUtc = null, int numTasks = 50,
-        CancellationToken cancellationToken = default)
+        string destinationEndpoint, string destinationAccountKey, string destinationDatabaseName, string destinationContainerName,
+        DateTimeOffset? cutoffUtc = null, int numTasks = 50, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Starting CopyContainer from {sourceDb}/{sourceContainer} to {destDb}/{destContainer}. Cutoff: {cutoff}", sourceDatabaseName,
             sourceContainerName, destinationDatabaseName, destinationContainerName, cutoffUtc);
