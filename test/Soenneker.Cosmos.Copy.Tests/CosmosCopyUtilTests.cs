@@ -1,20 +1,19 @@
-﻿using Soenneker.Cosmos.Copy.Abstract;
-using Soenneker.Tests.FixturedUnit;
-using Xunit;
+using Soenneker.Cosmos.Copy.Abstract;
+using Soenneker.Tests.HostedUnit;
 
 namespace Soenneker.Cosmos.Copy.Tests;
 
-[Collection("Collection")]
-public sealed class CosmosCopyUtilTests : FixturedUnitTest
+[ClassDataSource<Host>(Shared = SharedType.PerTestSession)]
+public sealed class CosmosCopyUtilTests : HostedUnitTest
 {
     private readonly ICosmosCopyUtil _util;
 
-    public CosmosCopyUtilTests(Fixture fixture, ITestOutputHelper output) : base(fixture, output)
+    public CosmosCopyUtilTests(Host host) : base(host)
     {
         _util = Resolve<ICosmosCopyUtil>(true);
     }
 
-    [Fact]
+    [Test]
     public void Default()
     {
 
