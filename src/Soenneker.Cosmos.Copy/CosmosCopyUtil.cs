@@ -12,7 +12,6 @@ using Soenneker.Cosmos.Container.Abstract;
 using Soenneker.Cosmos.Container.Setup.Abstract;
 using Soenneker.Extensions.Task;
 using Soenneker.Extensions.ValueTask;
-using Soenneker.Extensions.String;
 
 namespace Soenneker.Cosmos.Copy;
 
@@ -103,6 +102,8 @@ public sealed class CosmosCopyUtil : ICosmosCopyUtil
         string destinationEndpoint, string destinationAccountKey, string destinationDatabaseName, string destinationContainerName,
         DateTimeOffset? cutoffUtc = null, int numTasks = 50, CancellationToken cancellationToken = default)
     {
+        ArgumentOutOfRangeException.ThrowIfLessThan(numTasks, 1);
+
         _logger.LogInformation("Starting CopyContainer from {sourceDb}/{sourceContainer} to {destDb}/{destContainer}. Cutoff: {cutoff}", sourceDatabaseName,
             sourceContainerName, destinationDatabaseName, destinationContainerName, cutoffUtc);
 
@@ -112,20 +113,14 @@ public sealed class CosmosCopyUtil : ICosmosCopyUtil
                                                                      cancellationToken)
                                                                  .NoSync();
 
-        ContainerResponse? containerResponse = await _containerSetupUtil
-                                                     .Ensure(destinationEndpoint, destinationAccountKey, destinationDatabaseName, destinationContainerName,
-                                                         cancellationToken)
-                                                     .NoSync();
+        ContainerResponse containerResponse = await _containerSetupUtil
+                                                    .Ensure(destinationEndpoint, destinationAccountKey, destinationDatabaseName, destinationContainerName,
+                                                        cancellationToken)
+                                                    .NoSync()
+                                                ?? throw new InvalidOperationException(
+                                                    $"Could not ensure destination container '{destinationDatabaseName}/{destinationContainerName}'.");
 
         Microsoft.Azure.Cosmos.Container destContainer = containerResponse.Container;
-
-        // Ensure destination container exists (in case CopyContainer is called directly)
-        ContainerResponse sourceContainerResponse = await sourceContainer.ReadContainerAsync(cancellationToken: cancellationToken)
-                                                                         .NoSync();
-
-        ContainerProperties sourceProps = sourceContainerResponse.Resource;
-
-        _logger.LogDebug("Source container {container} properties: PK: {pk}", sourceContainerName, sourceProps.PartitionKeyPath);
 
         string queryText = cutoffUtc.HasValue ? "SELECT * FROM c WHERE c.createdAt >= @cutoff" : "SELECT * FROM c";
         _logger.LogDebug("Querying source with: {query}", queryText);
@@ -140,10 +135,8 @@ public sealed class CosmosCopyUtil : ICosmosCopyUtil
 
         using FeedIterator<JsonElement>? feedIterator = sourceContainer.GetItemQueryIterator<JsonElement>(queryDef);
 
-        string? partitionKeyPath = NormalizePartitionKeyPath(sourceProps.PartitionKeyPath);
-        _logger.LogDebug("Normalized partition key path: {pk}", partitionKeyPath);
-
-        var tasks = new List<Task>();
+        var tasks = new List<Task>(numTasks);
+        var writeOptions = new ItemRequestOptions {EnableContentResponseOnWrite = false};
         long copied = 0;
         var pageIndex = 0;
         DateTimeOffset startedAt = DateTimeOffset.UtcNow;
@@ -158,14 +151,15 @@ public sealed class CosmosCopyUtil : ICosmosCopyUtil
             foreach (JsonElement doc in page)
             {
                 // Let SDK infer the partition key from the document
-                tasks.Add(destContainer.UpsertItemAsync(doc, cancellationToken: cancellationToken));
+                tasks.Add(destContainer.UpsertItemAsync(doc, requestOptions: writeOptions, cancellationToken: cancellationToken));
 
                 if (tasks.Count >= numTasks)
                 {
                     await Task.WhenAll(tasks)
                               .NoSync();
                     tasks.Clear();
-                    _logger.LogDebug("Flushed a batch of 100 upserts to {destContainer}", destinationContainerName);
+                    if (_logger.IsEnabled(LogLevel.Debug))
+                        _logger.LogDebug("Flushed a batch of {count} upserts to {destContainer}", numTasks, destinationContainerName);
                 }
 
                 copied++;
@@ -176,7 +170,8 @@ public sealed class CosmosCopyUtil : ICosmosCopyUtil
         {
             await Task.WhenAll(tasks)
                       .NoSync();
-            _logger.LogDebug("Flushed final batch of {count} upserts to {destContainer}", tasks.Count, destinationContainerName);
+            if (_logger.IsEnabled(LogLevel.Debug))
+                _logger.LogDebug("Flushed final batch of {count} upserts to {destContainer}", tasks.Count, destinationContainerName);
         }
 
         TimeSpan duration = DateTimeOffset.UtcNow - startedAt;
@@ -184,14 +179,4 @@ public sealed class CosmosCopyUtil : ICosmosCopyUtil
             destinationDatabaseName, destinationContainerName, copied, duration);
     }
 
-    private static string? NormalizePartitionKeyPath(string? path)
-    {
-        if (path.IsNullOrWhiteSpace())
-            return null;
-
-        if (path[0] == '/')
-            return path[1..];
-
-        return path;
-    }
 }
