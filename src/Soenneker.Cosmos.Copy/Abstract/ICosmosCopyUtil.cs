@@ -17,6 +17,17 @@ public interface ICosmosCopyUtil
     /// Optionally filters items by createdAt >= cutoffUtc (global default, can be overridden per container).
     /// Optionally configures per-container cutoff times and exclusion via containerConfigs.
     /// </summary>
+    /// <param name="sourceEndpoint">source Endpoint to read or transform.</param>
+    /// <param name="sourceAccountKey">source Account Key to read or transform.</param>
+    /// <param name="sourceDatabaseName">source Database Name to read or transform.</param>
+    /// <param name="destinationEndpoint">destination Endpoint that receives the result.</param>
+    /// <param name="destinationAccountKey">destination Account Key that receives the result.</param>
+    /// <param name="destinationDatabaseName">destination Database Name that receives the result.</param>
+    /// <param name="cutoffUtc">Cutoff Utc for the copy database operation.</param>
+    /// <param name="numTasks">Num Tasks for the copy database operation.</param>
+    /// <param name="containerConfigs">container Configs to process.</param>
+    /// <param name="cancellationToken">Token used to cancel the operation.</param>
+    /// <returns>A task that completes when the copy database operation is complete.</returns>
     ValueTask CopyDatabase(string sourceEndpoint, string sourceAccountKey, string sourceDatabaseName, string destinationEndpoint, string destinationAccountKey,
         string destinationDatabaseName, DateTimeOffset? cutoffUtc = null, int numTasks = 50, IEnumerable<ContainerCopyConfig>? containerConfigs = null, CancellationToken cancellationToken = default);
 
@@ -24,6 +35,18 @@ public interface ICosmosCopyUtil
     /// Copies items from a source container to a destination container. Optionally filters items by createdAt >= cutoffUtc.
     /// Containers are created in the destination if they do not exist.
     /// </summary>
+    /// <param name="sourceEndpoint">source Endpoint to read or transform.</param>
+    /// <param name="sourceAccountKey">source Account Key to read or transform.</param>
+    /// <param name="sourceDatabaseName">source Database Name to read or transform.</param>
+    /// <param name="sourceContainerName">source Container Name to read or transform.</param>
+    /// <param name="destinationEndpoint">destination Endpoint that receives the result.</param>
+    /// <param name="destinationAccountKey">destination Account Key that receives the result.</param>
+    /// <param name="destinationDatabaseName">destination Database Name that receives the result.</param>
+    /// <param name="destinationContainerName">destination Container Name that receives the result.</param>
+    /// <param name="cutoffUtc">Cutoff Utc for the copy container operation.</param>
+    /// <param name="numTasks">Num Tasks for the copy container operation.</param>
+    /// <param name="cancellationToken">Token used to cancel the operation.</param>
+    /// <returns>A task that completes when the copy container operation is complete.</returns>
     ValueTask CopyContainer(string sourceEndpoint, string sourceAccountKey, string sourceDatabaseName, string sourceContainerName, string destinationEndpoint,
         string destinationAccountKey, string destinationDatabaseName, string destinationContainerName, DateTimeOffset? cutoffUtc = null, int numTasks = 50,
         CancellationToken cancellationToken = default);

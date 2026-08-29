@@ -13,6 +13,8 @@ public static class CosmosCopyUtilRegistrar
     /// <summary>
     /// Adds <see cref="ICosmosCopyUtil"/> as a singleton service. <para/>
     /// </summary>
+    /// <param name="services">Service collection that receives the registration.</param>
+    /// <returns>The same service collection, so additional registrations can be chained.</returns>
     public static IServiceCollection AddCosmosCopyUtilAsSingleton(this IServiceCollection services)
     {
         services.AddCosmosSuiteAsSingleton().TryAddSingleton<ICosmosCopyUtil, CosmosCopyUtil>();
@@ -23,6 +25,8 @@ public static class CosmosCopyUtilRegistrar
     /// <summary>
     /// Adds <see cref="ICosmosCopyUtil"/> as a scoped service. <para/>
     /// </summary>
+    /// <param name="services">Service collection that receives the registration.</param>
+    /// <returns>The same service collection, so additional registrations can be chained.</returns>
     public static IServiceCollection AddCosmosCopyUtilAsScoped(this IServiceCollection services)
     {
         services.AddCosmosSuiteAsSingleton().TryAddScoped<ICosmosCopyUtil, CosmosCopyUtil>();
