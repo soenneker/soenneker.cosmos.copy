@@ -5,44 +5,79 @@
 
 # Soenneker.Cosmos.Copy
 
-A utility to copy to and from Cosmos databases and containers.
+Copies documents between Azure Cosmos DB containers or replaces the contents of one database from another.
 
-## Install
+## Installation
 
 ```bash
 dotnet add package Soenneker.Cosmos.Copy
 ```
 
-## Quick start
+## Registration
 
 ```csharp
+using Soenneker.Cosmos.Copy.Abstract;
 using Soenneker.Cosmos.Copy.Registrars;
-using Microsoft.Extensions.DependencyInjection;
 
-var services = new ServiceCollection();
-var result = services.AddCosmosCopyUtilAsSingleton();
+services.AddCosmosCopyUtilAsSingleton();
+
+ICosmosCopyUtil copy = serviceProvider.GetRequiredService<ICosmosCopyUtil>();
 ```
 
-Adds `ICosmosCopyUtil` as a singleton service.
+`AddCosmosCopyUtilAsScoped()` is also available. Both registrations add the Cosmos suite dependencies as singletons.
 
-## What you get
+## Copy a container
 
-- `ICosmosCopyUtil` — A utility to copy to and from Cosmos databases and containers.
-- `CosmosCopyUtilRegistrar` — A utility to copy to and from Cosmos databases and containers.
-- `ContainerCopyConfig` — Configuration for copying a specific container, including optional cutoff time and exclusion flag.
+```csharp
+await copy.CopyContainer(
+    sourceEndpoint: sourceEndpoint,
+    sourceAccountKey: sourceKey,
+    sourceDatabaseName: "production",
+    sourceContainerName: "orders",
+    destinationEndpoint: destinationEndpoint,
+    destinationAccountKey: destinationKey,
+    destinationDatabaseName: "staging",
+    destinationContainerName: "orders",
+    cutoffUtc: DateTimeOffset.UtcNow.AddDays(-30),
+    numTasks: 25,
+    cancellationToken: cancellationToken);
+```
 
-## API at a glance
+Documents are upserted, so documents already present in the destination with the same `id` and partition key are replaced. Existing destination documents that are not returned by the source query remain in place.
 
-| API | What it does | Result / important behavior |
-| --- | --- | --- |
-| `ICosmosCopyUtil.CopyDatabase(sourceEndpoint, sourceAccountKey, sourceDatabaseName, destinationEndpoint, destinationAccountKey, destinationDatabaseName, cutoffUtc, numTasks, containerConfigs, cancellationToken)` | Copies all containers and their items from a source database to a destination database. Prior to copying, all existing containers in the destination database are deleted, then recreated to match the source. Optionally filters items by createdAt >= cutoffUtc (global default, can be overridden per container). Optionally configures per-container cutoff times and exclusion via containerConfigs. | A task that completes when the copy database operation is complete. |
-| `ICosmosCopyUtil.CopyContainer(sourceEndpoint, sourceAccountKey, sourceDatabaseName, sourceContainerName, destinationEndpoint, destinationAccountKey, destinationDatabaseName, destinationContainerName, cutoffUtc, numTasks, cancellationToken)` | Copies items from a source container to a destination container. Optionally filters items by createdAt >= cutoffUtc. Containers are created in the destination if they do not exist. | A task that completes when the copy container operation is complete. |
-| `CosmosCopyUtilRegistrar.AddCosmosCopyUtilAsSingleton(services)` | Adds `ICosmosCopyUtil` as a singleton service. | The same service collection, so additional registrations can be chained. |
-| `CosmosCopyUtilRegistrar.AddCosmosCopyUtilAsScoped(services)` | Adds `ICosmosCopyUtil` as a scoped service. | The same service collection, so additional registrations can be chained. |
-| `ContainerCopyConfig.ContainerName` | The name of the container to configure. | The name of the container to configure. |
-| `ContainerCopyConfig.CutoffUtc` | Optional cutoff time for filtering items by createdAt. If null, uses the global cutoff time or no filter. | Optional cutoff time for filtering items by createdAt. If null, uses the global cutoff time or no filter. |
-| `ContainerCopyConfig.Exclude` | If true, this container will be excluded from the copy operation. | If true, this container will be excluded from the copy operation. |
+When `cutoffUtc` is supplied, the source query requires a `createdAt` property and copies documents where `createdAt >= cutoffUtc`. Omit it to copy every document.
 
-## Practical notes
+## Replace a database
 
-- Cancellation stops pending work; it does not undo work that has already completed.
+```csharp
+var containerOptions = new[]
+{
+    new ContainerCopyConfig { ContainerName = "audit", Exclude = true },
+    new ContainerCopyConfig
+    {
+        ContainerName = "orders",
+        CutoffUtc = DateTimeOffset.UtcNow.AddDays(-7)
+    }
+};
+
+await copy.CopyDatabase(
+    sourceEndpoint,
+    sourceKey,
+    "production",
+    destinationEndpoint,
+    destinationKey,
+    "staging",
+    cutoffUtc: DateTimeOffset.UtcNow.AddDays(-30),
+    containerConfigs: containerOptions,
+    cancellationToken: cancellationToken);
+```
+
+`CopyDatabase` is destructive: it deletes every container in the destination database before copying. An excluded source container is not recreated. The source and destination database cannot be the same.
+
+A per-container cutoff overrides the global cutoff. Container names in `containerConfigs` are matched case-insensitively and must be unique.
+
+## Container compatibility
+
+Destination containers are created with `/partitionKey` as the partition-key path and without dedicated throughput. The utility copies documents, not the source container's partition-key definition, indexing policy, unique keys, TTL, throughput, or other settings. Use it only when `/partitionKey` is valid for the documents being copied, and configure any additional destination settings separately.
+
+The `numTasks` argument controls the number of upserts awaited together; it must be at least `1`. Copy failures and cancellation propagate to the caller. Completed deletes and upserts are not rolled back.

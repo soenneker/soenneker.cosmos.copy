@@ -15,7 +15,6 @@ using Soenneker.Extensions.ValueTask;
 
 namespace Soenneker.Cosmos.Copy;
 
-/// <inheritdoc cref="ICosmosCopyUtil"/>
 public sealed class CosmosCopyUtil : ICosmosCopyUtil
 {
     private readonly ILogger<CosmosCopyUtil> _logger;
@@ -33,6 +32,9 @@ public sealed class CosmosCopyUtil : ICosmosCopyUtil
         string destinationAccountKey, string destinationDatabaseName, DateTimeOffset? cutoffUtc = null, int numTasks = 50,
         IEnumerable<ContainerCopyConfig>? containerConfigs = null, CancellationToken cancellationToken = default)
     {
+        if (IsSameDatabase(sourceEndpoint, sourceDatabaseName, destinationEndpoint, destinationDatabaseName))
+            throw new InvalidOperationException("The source and destination databases must be different because the destination is cleared before copying.");
+
         _logger.LogInformation("Starting CopyDatabase from {sourceDb} to {destDb}. Global cutoff: {cutoff}", sourceDatabaseName, destinationDatabaseName,
             cutoffUtc);
 
@@ -96,6 +98,16 @@ public sealed class CosmosCopyUtil : ICosmosCopyUtil
         }
 
         _logger.LogInformation("Completed CopyDatabase from {sourceDb} to {destDb}", sourceDatabaseName, destinationDatabaseName);
+    }
+
+    private static bool IsSameDatabase(string sourceEndpoint, string sourceDatabaseName, string destinationEndpoint, string destinationDatabaseName)
+    {
+        var sourceUri = new Uri(sourceEndpoint);
+        var destinationUri = new Uri(destinationEndpoint);
+
+        return Uri.Compare(sourceUri, destinationUri, UriComponents.SchemeAndServer | UriComponents.Path, UriFormat.SafeUnescaped,
+                   StringComparison.OrdinalIgnoreCase) == 0 &&
+               string.Equals(sourceDatabaseName, destinationDatabaseName, StringComparison.Ordinal);
     }
 
     public async ValueTask CopyContainer(string sourceEndpoint, string sourceAccountKey, string sourceDatabaseName, string sourceContainerName,
