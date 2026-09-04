@@ -15,6 +15,7 @@ using Soenneker.Extensions.ValueTask;
 
 namespace Soenneker.Cosmos.Copy;
 
+/// <inheritdoc cref="ICosmosCopyUtil" />
 public sealed class CosmosCopyUtil : ICosmosCopyUtil
 {
     private readonly ILogger<CosmosCopyUtil> _logger;
