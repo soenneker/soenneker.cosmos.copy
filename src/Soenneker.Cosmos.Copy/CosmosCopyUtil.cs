@@ -15,7 +15,6 @@ using Soenneker.Extensions.ValueTask;
 
 namespace Soenneker.Cosmos.Copy;
 
-/// <inheritdoc cref="ICosmosCopyUtil" />
 public sealed class CosmosCopyUtil : ICosmosCopyUtil
 {
     private readonly ILogger<CosmosCopyUtil> _logger;
@@ -33,6 +32,8 @@ public sealed class CosmosCopyUtil : ICosmosCopyUtil
         string destinationAccountKey, string destinationDatabaseName, DateTimeOffset? cutoffUtc = null, int numTasks = 50,
         IEnumerable<ContainerCopyConfig>? containerConfigs = null, CancellationToken cancellationToken = default)
     {
+        ArgumentOutOfRangeException.ThrowIfLessThan(numTasks, 1);
+
         if (IsSameDatabase(sourceEndpoint, sourceDatabaseName, destinationEndpoint, destinationDatabaseName))
             throw new InvalidOperationException("The source and destination databases must be different because the destination is cleared before copying.");
 
@@ -45,20 +46,23 @@ public sealed class CosmosCopyUtil : ICosmosCopyUtil
         {
             configDict = containerConfigs.ToDictionary(c => c.ContainerName, c => c, StringComparer.OrdinalIgnoreCase);
 
-            List<ContainerCopyConfig> excluded = configDict.Values.Where(c => c.Exclude)
-                                                           .ToList();
-            if (excluded.Count > 0)
+            if (_logger.IsEnabled(LogLevel.Information))
             {
-                _logger.LogInformation("Excluding {count} container(s) from copy: {containers}", excluded.Count,
-                    string.Join(", ", excluded.Select(c => c.ContainerName)));
-            }
+                List<ContainerCopyConfig> excluded = configDict.Values.Where(c => c.Exclude)
+                                                               .ToList();
+                if (excluded.Count > 0)
+                {
+                    _logger.LogInformation("Excluding {count} container(s) from copy: {containers}", excluded.Count,
+                        string.Join(", ", excluded.Select(c => c.ContainerName)));
+                }
 
-            List<ContainerCopyConfig> withCustomCutoff = configDict.Values.Where(c => !c.Exclude && c.CutoffUtc.HasValue)
-                                                                   .ToList();
-            if (withCustomCutoff.Count > 0)
-            {
-                _logger.LogInformation("Containers with custom cutoff times: {containers}",
-                    string.Join(", ", withCustomCutoff.Select(c => $"{c.ContainerName} (cutoff: {c.CutoffUtc})")));
+                List<ContainerCopyConfig> withCustomCutoff = configDict.Values.Where(c => !c.Exclude && c.CutoffUtc.HasValue)
+                                                                       .ToList();
+                if (withCustomCutoff.Count > 0)
+                {
+                    _logger.LogInformation("Containers with custom cutoff times: {containers}",
+                        string.Join(", ", withCustomCutoff.Select(c => $"{c.ContainerName} (cutoff: {c.CutoffUtc})")));
+                }
             }
         }
 
@@ -148,8 +152,10 @@ public sealed class CosmosCopyUtil : ICosmosCopyUtil
 
         using FeedIterator<JsonElement>? feedIterator = sourceContainer.GetItemQueryIterator<JsonElement>(queryDef);
 
-        var tasks = new List<Task>(numTasks);
-        var writeOptions = new ItemRequestOptions {EnableContentResponseOnWrite = false};
+        var parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = numTasks, CancellationToken = cancellationToken };
+        var writeOptions = new ItemRequestOptions { EnableContentResponseOnWrite = false };
+        Func<JsonElement, CancellationToken, ValueTask> copyItem = (doc, token) =>
+            new(destContainer.UpsertItemAsync(doc, requestOptions: writeOptions, cancellationToken: token));
         long copied = 0;
         var pageIndex = 0;
         DateTimeOffset startedAt = DateTimeOffset.UtcNow;
@@ -161,30 +167,9 @@ public sealed class CosmosCopyUtil : ICosmosCopyUtil
                                                                .NoSync();
 
             _logger.LogInformation("Processing page {pageIndex} with {count} items from {sourceContainer}", pageIndex, page.Count, sourceContainerName);
-            foreach (JsonElement doc in page)
-            {
-                // Let SDK infer the partition key from the document
-                tasks.Add(destContainer.UpsertItemAsync(doc, requestOptions: writeOptions, cancellationToken: cancellationToken));
-
-                if (tasks.Count >= numTasks)
-                {
-                    await Task.WhenAll(tasks)
-                              .NoSync();
-                    tasks.Clear();
-                    if (_logger.IsEnabled(LogLevel.Debug))
-                        _logger.LogDebug("Flushed a batch of {count} upserts to {destContainer}", numTasks, destinationContainerName);
-                }
-
-                copied++;
-            }
-        }
-
-        if (tasks.Count > 0)
-        {
-            await Task.WhenAll(tasks)
-                      .NoSync();
-            if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug("Flushed final batch of {count} upserts to {destContainer}", tasks.Count, destinationContainerName);
+            // Keep workers busy as individual writes finish, and settle them before releasing this page.
+            await Parallel.ForEachAsync(page.Resource, parallelOptions, copyItem).NoSync();
+            copied += page.Count;
         }
 
         TimeSpan duration = DateTimeOffset.UtcNow - startedAt;
