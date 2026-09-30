@@ -17,7 +17,7 @@ namespace Soenneker.Cosmos.Copy.Tests;
 public class CopyRegressionTests
 {
     [Test]
-    public async Task CopyUsesFreedWorkerBeforeSlowWriteFinishes()
+    public async ValueTask CopyUsesFreedWorkerBeforeSlowWriteFinishes()
     {
         var slow = new TaskCompletionSource<ItemResponse<JsonElement>>(TaskCreationOptions.RunContinuationsAsynchronously);
         var thirdStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -51,7 +51,7 @@ public class CopyRegressionTests
     }
 
     [Test]
-    public async Task InvalidConcurrencyDoesNotDeleteDestination()
+    public async ValueTask InvalidConcurrencyDoesNotDeleteDestination()
     {
         var containers = new Mock<ICosmosContainerUtil>(MockBehavior.Strict);
         var util = new CosmosCopyUtil(NullLogger<CosmosCopyUtil>.Instance, containers.Object, Mock.Of<ICosmosContainerSetupUtil>());
@@ -61,7 +61,7 @@ public class CopyRegressionTests
     }
 
     [Test]
-    public async Task FailedWriteSettlesOtherWorkersBeforeReturning()
+    public async ValueTask FailedWriteSettlesOtherWorkersBeforeReturning()
     {
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
