@@ -17,7 +17,7 @@ namespace Soenneker.Cosmos.Copy.Tests;
 public class CopyRegressionTests
 {
     [Test]
-    public async ValueTask CopyUsesFreedWorkerBeforeSlowWriteFinishes()
+    public async ValueTask CopyUsesFreedWorkerBeforeSlowWriteFinishes(CancellationToken cancellationToken)
     {
         var slow = new TaskCompletionSource<ItemResponse<JsonElement>>(TaskCreationOptions.RunContinuationsAsynchronously);
         var thirdStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -38,10 +38,10 @@ public class CopyRegressionTests
                 return response;
             });
         var util = Create(destination.Object, [0, 1, 2, 3]);
-        Task copying = util.CopyContainer("source", "key", "db", "container", "dest", "key", "db", "container", numTasks: 2).AsTask();
+        Task copying = util.CopyContainer("source", "key", "db", "container", "dest", "key", "db", "container", numTasks: 2, cancellationToken: cancellationToken).AsTask();
         try
         {
-            await thirdStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await thirdStarted.Task.WaitAsync(TimeSpan.FromSeconds(5), cancellationToken: cancellationToken);
             copying.IsCompleted.Should().BeFalse();
         }
         finally { slow.TrySetResult(response); await copying; }
@@ -51,17 +51,17 @@ public class CopyRegressionTests
     }
 
     [Test]
-    public async ValueTask InvalidConcurrencyDoesNotDeleteDestination()
+    public async ValueTask InvalidConcurrencyDoesNotDeleteDestination(CancellationToken cancellationToken)
     {
         var containers = new Mock<ICosmosContainerUtil>(MockBehavior.Strict);
         var util = new CosmosCopyUtil(NullLogger<CosmosCopyUtil>.Instance, containers.Object, Mock.Of<ICosmosContainerSetupUtil>());
-        Func<Task> run = async () => await util.CopyDatabase("https://source", "key", "db", "https://dest", "key", "db", numTasks: 0);
+        Func<Task> run = async () => await util.CopyDatabase("https://source", "key", "db", "https://dest", "key", "db", numTasks: 0, cancellationToken: cancellationToken);
         await run.Should().ThrowAsync<ArgumentOutOfRangeException>();
         containers.VerifyNoOtherCalls();
     }
 
     [Test]
-    public async ValueTask FailedWriteSettlesOtherWorkersBeforeReturning()
+    public async ValueTask FailedWriteSettlesOtherWorkersBeforeReturning(CancellationToken cancellationToken)
     {
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -81,8 +81,8 @@ public class CopyRegressionTests
                 throw new InvalidOperationException("write failed");
             });
         var util = Create(destination.Object, [0, 1]);
-        Task copying = util.CopyContainer("source", "key", "db", "container", "dest", "key", "db", "container", numTasks: 2).AsTask();
-        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Task copying = util.CopyContainer("source", "key", "db", "container", "dest", "key", "db", "container", numTasks: 2, cancellationToken: cancellationToken).AsTask();
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5), cancellationToken: cancellationToken);
         copying.IsCompleted.Should().BeFalse();
         release.TrySetResult();
         Func<Task> run = () => copying;
