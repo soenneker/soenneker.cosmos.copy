@@ -20,6 +20,7 @@ public class CopyRegressionTests
     public async ValueTask CopyUsesFreedWorkerBeforeSlowWriteFinishes(CancellationToken cancellationToken)
     {
         var slow = new TaskCompletionSource<ItemResponse<JsonElement>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var slowStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var thirdStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var destination = new Mock<Microsoft.Azure.Cosmos.Container>();
         var response = Mock.Of<ItemResponse<JsonElement>>();
@@ -28,10 +29,16 @@ public class CopyRegressionTests
             .Returns(async (JsonElement item, PartitionKey? pk, ItemRequestOptions options, CancellationToken ct) =>
             {
                 options.EnableContentResponseOnWrite.Should().BeFalse();
+                // Workers may enter the mock out of order; ensure fast writes overlap the slow write.
+                if (item.GetInt32() != 0) await slowStarted.Task.WaitAsync(ct);
                 int current = Interlocked.Increment(ref active);
                 int previous;
                 do { previous = Volatile.Read(ref peak); } while (current > previous && Interlocked.CompareExchange(ref peak, current, previous) != previous);
-                if (item.GetInt32() == 0) await slow.Task.WaitAsync(ct);
+                if (item.GetInt32() == 0)
+                {
+                    slowStarted.TrySetResult();
+                    await slow.Task.WaitAsync(ct);
+                }
                 if (item.GetInt32() == 2) thirdStarted.TrySetResult();
                 Interlocked.Decrement(ref active);
                 Interlocked.Increment(ref completed);
