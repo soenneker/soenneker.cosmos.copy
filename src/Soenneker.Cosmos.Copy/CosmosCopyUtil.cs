@@ -140,14 +140,16 @@ public sealed class CosmosCopyUtil : ICosmosCopyUtil
         Microsoft.Azure.Cosmos.Container destContainer = containerResponse.Container;
 
         string queryText = cutoffUtc.HasValue ? "SELECT * FROM c WHERE c.createdAt >= @cutoff" : "SELECT * FROM c";
-        _logger.LogDebug("Querying source with: {query}", queryText);
+        if (_logger.IsEnabled(LogLevel.Debug))
+            _logger.LogDebug("Querying source with: {query}", queryText);
 
         var queryDef = new QueryDefinition(queryText);
 
         if (cutoffUtc.HasValue)
         {
             queryDef.WithParameter("@cutoff", cutoffUtc.Value);
-            _logger.LogDebug("Applied cutoff parameter: {cutoff}", cutoffUtc);
+            if (_logger.IsEnabled(LogLevel.Debug))
+                _logger.LogDebug("Applied cutoff parameter: {cutoff}", cutoffUtc);
         }
 
         using FeedIterator<JsonElement>? feedIterator = sourceContainer.GetItemQueryIterator<JsonElement>(queryDef);
